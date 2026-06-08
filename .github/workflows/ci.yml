@@ -1,12 +1,4 @@
-name: CI
-
-env:
-UPLOAD_ARTIFACT: "${{ github.event.inputs.upload-artifact || 'true' }}"
-#   MIN_SUPPORTED_RUST_VERSION: "1.46.0"
-#   CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
-  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
-  # for multiarch gcc compatibility
-  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+name: Full Flutter CI
 
 on:
   workflow_dispatch:
@@ -14,7 +6,7 @@ on:
       upload-artifact:
         type: boolean
         default: true
-        description: "是否上传编译产物"
+        description: "Upload build artifacts"
   pull_request:
     paths-ignore:
       - "docs/**"
@@ -29,6 +21,12 @@ on:
       - "res/**"
       - "appimage/**"
       - "flatpak/**"
+
+env:
+  UPLOAD_ARTIFACT: "true"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+
 
 jobs:
   # ensure_cargo_fmt:
