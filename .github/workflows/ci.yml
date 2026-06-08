@@ -1,6 +1,7 @@
 name: CI
 
 env:
+UPLOAD_ARTIFACT: "${{ github.event.inputs.upload-artifact || 'true' }}"
 #   MIN_SUPPORTED_RUST_VERSION: "1.46.0"
 #   CICD_INTERMEDIATES_DIR: "_cicd-intermediates"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
@@ -9,6 +10,11 @@ env:
 
 on:
   workflow_dispatch:
+    inputs:
+      upload-artifact:
+        type: boolean
+        default: true
+        description: "是否上传编译产物"
   pull_request:
     paths-ignore:
       - "docs/**"
