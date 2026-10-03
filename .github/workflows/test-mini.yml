@@ -1,0 +1,8 @@
+name: Mini Test
+on:
+  workflow_dispatch:
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "actions ok on fork"
