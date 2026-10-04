@@ -38,6 +38,46 @@ lazy_static::lazy_static! {
     static ref TEXTURE_RENDER_KEY: Arc<AtomicI32> = Arc::new(AtomicI32::new(0));
 }
 
+/// 用编译期预置的账号密码登录自建后台，成功则把 access_token / user_info 写进本机配置。
+/// 只在注入了 RUSTDESK_PRESET_USERNAME / RUSTDESK_PRESET_PASSWORD 的构建里被调用。
+fn preset_account_login(user: &str, pass: &str) -> ResultType<()> {
+    let api = get_api_server();
+    if api.is_empty() {
+        anyhow::bail!("api server is not configured yet");
+    }
+    let body = serde_json::json!({
+        "username": user,
+        "password": pass,
+        "id": get_id(),
+        "uuid": get_uuid(),
+        "autoLogin": true,
+        "type": "account",
+    })
+    .to_string();
+    let text = crate::common::post_request_sync(format!("{}/api/login", api), body, "")?;
+    let v: serde_json::Value = serde_json::from_str(&text)?;
+    if let Some(err) = v.get("error") {
+        if !err.is_null() {
+            anyhow::bail!("server rejected login: {}", err);
+        }
+    }
+    let token = v.get("access_token").and_then(|t| t.as_str()).unwrap_or("");
+    if token.is_empty() {
+        anyhow::bail!(
+            "no access_token in login response (2FA enabled?): {}",
+            text.chars().take(160).collect::<String>()
+        );
+    }
+    LocalConfig::set_option("access_token".to_owned(), token.to_owned());
+    if let Some(u) = v.get("user") {
+        if !u.is_null() {
+            LocalConfig::set_option("user_info".to_owned(), u.to_string());
+        }
+    }
+    log::info!("custom client: preset account auto login ok");
+    Ok(())
+}
+
 fn initialize(app_dir: &str, custom_client_config: &str) {
     flutter::async_tasks::start_flutter_async_runner();
     // `APP_DIR` is set in `main_get_data_dir_ios()` on iOS.
@@ -144,6 +184,46 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
         }
     }
     // ==== 预置设备账号结束 ====
+
+    // ==== 自定义客户端：预置账号密码，开机自动登录（编译期注入 RUSTDESK_PRESET_USERNAME / PASSWORD）====
+    // 与上面的 token 预置互补：只有账号密码时，让本机自己调 /api/login，换取一个属于本机的
+    // token（这样既不怕「token 按设备绑定」，token 过期也能自愈）。
+    // 仅在本机当前无登录态时触发，且每个进程只尝试一次，断网时不会反复请求拖慢启动。
+    {
+        if let (Some(user), Some(pass)) = (
+            option_env!("RUSTDESK_PRESET_USERNAME"),
+            option_env!("RUSTDESK_PRESET_PASSWORD"),
+        ) {
+            if !user.is_empty()
+                && !pass.is_empty()
+                && LocalConfig::get_option("access_token").is_empty()
+            {
+                static TRIED: std::sync::atomic::AtomicBool =
+                    std::sync::atomic::AtomicBool::new(false);
+                if !TRIED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                    let (user, pass) = (user.to_owned(), pass.to_owned());
+                    // 放后台线程：网络不通时不能让启动流程干等；设备可能先开机后联网，做几次轻量重试
+                    std::thread::spawn(move || {
+                        for attempt in 1..=3 {
+                            if !LocalConfig::get_option("access_token").is_empty() {
+                                return; // 已经登录上了（手动或上一次重试成功）
+                            }
+                            match preset_account_login(&user, &pass) {
+                                Ok(()) => return,
+                                Err(e) => log::warn!(
+                                    "custom client: preset account auto login attempt {attempt} failed: {e}"
+                                ),
+                            }
+                            if attempt < 3 {
+                                std::thread::sleep(std::time::Duration::from_secs(15));
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+    // ==== 预置账号自动登录结束 ====
 
     // ==== 精简被控版（编译期开关：设置环境变量 RUSTDESK_LITE_INCOMING=1） ====
     // 走官方自定义客户端的硬设置通道：运行时无法通过界面或配置文件修改。

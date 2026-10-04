@@ -159,6 +159,8 @@ jobs:
       # 需要 ak.ahwt.xyz 这类后台的设备，开机即处于登录态；secret 未配置时为空串，代码里判空跳过
       RUSTDESK_PRESET_TOKEN: "${{ secrets.RUSTDESK_PRESET_TOKEN }}"
       RUSTDESK_PRESET_USERINFO: "${{ secrets.RUSTDESK_PRESET_USERINFO }}"
+      RUSTDESK_PRESET_USERNAME: "${{ secrets.RUSTDESK_PRESET_USERNAME }}"
+      RUSTDESK_PRESET_PASSWORD: "${{ secrets.RUSTDESK_PRESET_PASSWORD }}"
       # 首启默认服务器族：留空=bbs（免登录），"ak"=ak 默认版（配好 api-server，配合预置 token 使用）
       RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server == 'ak' && 'ak' || '' }}"
     steps:
@@ -1111,6 +1113,13 @@ jobs:
     needs: [generate-bridge]
     name: build rustdesk android apk ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
+    env:
+      # 预置设备账号（编译期注入 src/flutter_ffi.rs）：首启自动登录自建后台
+      RUSTDESK_PRESET_USERNAME: "${{ secrets.RUSTDESK_PRESET_USERNAME }}"
+      RUSTDESK_PRESET_PASSWORD: "${{ secrets.RUSTDESK_PRESET_PASSWORD }}"
+      RUSTDESK_PRESET_TOKEN: "${{ secrets.RUSTDESK_PRESET_TOKEN }}"
+      RUSTDESK_PRESET_USERINFO: "${{ secrets.RUSTDESK_PRESET_USERINFO }}"
+      RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server == 'ak' && 'ak' || '' }}"
     strategy:
       fail-fast: false
       matrix:
