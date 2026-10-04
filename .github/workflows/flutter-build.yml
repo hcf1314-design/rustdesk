@@ -61,8 +61,10 @@ jobs:
   generate-sbom:
     runs-on: ubuntu-latest
 
+    # fork 的 GITHUB_TOKEN 只有只读权限，且这里的 write 仅为发布 release 用（已禁用），
+    # 若保留 contents: write，调用方会因“请求超出允许范围”直接 startup_failure。
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
