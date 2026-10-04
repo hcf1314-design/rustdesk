@@ -17,6 +17,10 @@ on:
         description: "用自签名证书给 Windows 产物签名（需要 SELFSIGN_PFX secrets）"
         type: boolean
         default: true
+      preset_server:
+        description: "首启默认服务器：留空=bbs，ak=ak 默认版（配好 api-server，配合预置 token）"
+        type: string
+        default: ""
 
 # NOTE: F-Droid builder script 'flutter/build_fdroid.sh' reads environment
 # variables from this workflow!
@@ -151,6 +155,12 @@ jobs:
       # 自签名开关：secrets 不能用在 if 里，转成 env 再判断；
       # inputs.selfsign 为 true 且证书 secret 存在时才执行 Self-sign 步骤
       SELFSIGN_ENABLED: "${{ inputs.selfsign != false && secrets.SELFSIGN_PFX_BASE64 != null && '1' || '' }}"
+      # 预置设备账号登录态（编译期经 option_env! 注入 src/flutter_ffi.rs）：
+      # 需要 ak.ahwt.xyz 这类后台的设备，开机即处于登录态；secret 未配置时为空串，代码里判空跳过
+      RUSTDESK_PRESET_TOKEN: "${{ secrets.RUSTDESK_PRESET_TOKEN }}"
+      RUSTDESK_PRESET_USERINFO: "${{ secrets.RUSTDESK_PRESET_USERINFO }}"
+      # 首启默认服务器族：留空=bbs（免登录），"ak"=ak 默认版（配好 api-server，配合预置 token 使用）
+      RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server == 'ak' && 'ak' || '' }}"
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6

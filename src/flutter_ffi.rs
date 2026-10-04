@@ -101,22 +101,49 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 "1".to_owned(),
             );
             if config::Config::get_option("custom-rendezvous-server").is_empty() {
+                // 编译期选择默认服务器族：RUSTDESK_PRESET_SERVER=ak 出「ak 默认版」，否则维持 bbs
+                let preset_ak = option_env!("RUSTDESK_PRESET_SERVER") == Some("ak");
+                let (id_server, relay_server, api_server) = if preset_ak {
+                    ("ak.ahwt.xyz", "ak.ahwt.xyz", "http://ak.ahwt.xyz:21114")
+                } else {
+                    ("bbs.ahwt.cc", "bbs.ahwt.cc", "")
+                };
                 config::Config::set_option(
                     "custom-rendezvous-server".to_owned(),
-                    "bbs.ahwt.cc".to_owned(),
+                    id_server.to_owned(),
                 );
-                config::Config::set_option(
-                    "relay-server".to_owned(),
-                    "bbs.ahwt.cc".to_owned(),
-                );
+                config::Config::set_option("relay-server".to_owned(), relay_server.to_owned());
                 config::Config::set_option(
                     "key".to_owned(),
                     "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=".to_owned(),
                 );
+                if !api_server.is_empty() {
+                    config::Config::set_option("api-server".to_owned(), api_server.to_owned());
+                }
             }
         }
     }
     // ==== 预置结束 ====
+
+    // ==== 自定义客户端：预置设备账号登录态（编译期注入 RUSTDESK_PRESET_TOKEN）====
+    // 用途：ak.ahwt.xyz 这类需要账号的后台，被控设备登录一次后即使重启/断网也要保持登录态，
+    // 否则设备的账号信息不会同步到后台地址簿，操作端就"看不到"它了。
+    // 仅在当前 token 为空时写入（不覆盖用户自己登录的账号），因此 token 万一被服务器作废
+    // 也能在下次重启时自动恢复。
+    {
+        if let Some(token) = option_env!("RUSTDESK_PRESET_TOKEN") {
+            if !token.is_empty() && LocalConfig::get_option("access_token").is_empty() {
+                LocalConfig::set_option("access_token".to_owned(), token.to_owned());
+                if let Some(info) = option_env!("RUSTDESK_PRESET_USERINFO") {
+                    if !info.is_empty() {
+                        LocalConfig::set_option("user_info".to_owned(), info.to_owned());
+                    }
+                }
+                log::info!("custom client: preset device account token applied");
+            }
+        }
+    }
+    // ==== 预置设备账号结束 ====
 
     // ==== 精简被控版（编译期开关：设置环境变量 RUSTDESK_LITE_INCOMING=1） ====
     // 走官方自定义客户端的硬设置通道：运行时无法通过界面或配置文件修改。
