@@ -5,6 +5,11 @@ on:
     # schedule build every night
     - cron: "0 0 * * *"
   workflow_dispatch:
+    inputs:
+      lite:
+        description: "精简被控版（仅被控，锁定设置）"
+        type: boolean
+        default: false
 
 jobs:
   run-flutter-nightly-build:
@@ -13,3 +18,4 @@ jobs:
     with:
       upload-artifact: true
       upload-tag: "nightly"
+      lite: ${{ inputs.lite == true }}

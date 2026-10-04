@@ -75,7 +75,7 @@ jobs:
 
       - name: Publish Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
@@ -134,6 +134,10 @@ jobs:
               # no NV/Intel/AMD hardware exists on Windows-on-ARM, so vram stays disabled here.
               build-args: "",
             }
+    env:
+      # 精简被控版：编译期注入仅被控/锁定设置的硬编码（src/flutter_ffi.rs），只影响 Windows
+      LITE_SUFFIX: "${{ inputs.lite == true && '-lite' || '' }}"
+      RUSTDESK_LITE_INCOMING: "${{ inputs.lite == true && '1' || '' }}"
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -350,7 +354,7 @@ jobs:
         if: env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-unsigned-windows-${{ matrix.job.arch }}
+          name: rustdesk-unsigned-windows-${{ inputs.lite == true && 'lite-' || '' }}${{ matrix.job.arch }}
           path: rustdesk
 
       - name: Sign rustdesk files
@@ -359,6 +363,23 @@ jobs:
         run: |
           pip3 install requests argparse
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
+
+      - name: Self-sign rustdesk exe (portable)
+        if: env.UPLOAD_ARTIFACT == 'true'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pfxPath = Join-Path $env:RUNNER_TEMP "selfsign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String("${{ secrets.SELFSIGN_PFX_BASE64 }}"))
+          $sec = ConvertTo-SecureString "${{ secrets.SELFSIGN_PFX_PASSWORD }}" -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $sec
+          $SIGN_DIR = "./rustdesk"
+          Get-ChildItem -Path $SIGN_DIR -Filter *.exe | ForEach-Object {
+            $sig = Set-AuthenticodeSignature -FilePath $_.FullName -Cert $cert -TimestampServer "http://timestamp.digicert.com" -HashAlgorithm SHA256
+            Write-Host "$($_.Name): $($sig.Status)"
+          }
+          $bad = Get-ChildItem -Path "$SIGN_DIR" -Filter *.exe | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' }
+          if ($bad) { Write-Error "self-sign failed for: $($bad.Name -join ', ')" }
 
       - name: Build self-extracted executable
         shell: bash
@@ -450,9 +471,36 @@ jobs:
         run: |
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
 
+      - name: Self-sign self-extracted exe and msi
+        if: env.UPLOAD_ARTIFACT == 'true'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $pfxPath = Join-Path $env:RUNNER_TEMP "selfsign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String("${{ secrets.SELFSIGN_PFX_BASE64 }}"))
+          $sec = ConvertTo-SecureString "${{ secrets.SELFSIGN_PFX_PASSWORD }}" -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $sec
+          $SIGN_DIR = "./SignOutput"
+          Get-ChildItem -Path $SIGN_DIR -Filter *.exe | ForEach-Object {
+            $sig = Set-AuthenticodeSignature -FilePath $_.FullName -Cert $cert -TimestampServer "http://timestamp.digicert.com" -HashAlgorithm SHA256
+            Write-Host "$($_.Name): $($sig.Status)"
+          }
+          $bad = Get-ChildItem -Path "$SIGN_DIR" -Filter *.exe | Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' }
+          if ($bad) { Write-Error "self-sign failed for: $($bad.Name -join ', ')" }
+
+      - name: Upload single-exe and msi installer
+        if: env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rustdesk-single-exe${{ env.LITE_SUFFIX }}-${{ matrix.job.arch }}
+          path: |
+            ./SignOutput/*.exe
+            ./SignOutput/*.msi
+          if-no-files-found: error
+
       - name: Publish Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
@@ -614,7 +662,7 @@ jobs:
 
       - name: Publish Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
@@ -964,7 +1012,7 @@ jobs:
           done
 
       - name: Publish DMG package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1027,6 +1075,7 @@ jobs:
           tar czf rustdesk-${{ env.VERSION }}-unsigned.tar.gz *.dmg windows-x86_64 windows-aarch64 windows-x86 msi-template
 
       - name: Publish unsigned app
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1309,7 +1358,7 @@ jobs:
           path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish signed apk package
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1318,13 +1367,21 @@ jobs:
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish unsigned apk package
-        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
           tag_name: ${{ env.TAG_NAME }}
           files: |
             signed-apk/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+
+      - name: Upload unsigned apk (fork has no signing key)
+        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+          path: signed-apk/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.apk
+          if-no-files-found: error
 
   build-rustdesk-android-universal:
     needs: [build-rustdesk-android]
@@ -1486,6 +1543,14 @@ jobs:
           # env.ANDROID_SIGN_TOOL_VERSION is set by Step "Setup sign tool version variable"
           BUILD_TOOLS_VERSION: ${{ env.ANDROID_SIGN_TOOL_VERSION }}
 
+      - name: Upload unsigned universal apk (fork has no signing key)
+        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+          path: signed-apk/rustdesk-${{ env.VERSION }}-universal${{ env.suffix }}.apk
+          if-no-files-found: error
+
       - name: Upload Artifacts
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -1494,7 +1559,7 @@ jobs:
           path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish signed apk package
-        if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1503,7 +1568,7 @@ jobs:
             ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish unsigned apk package
-        if: env.ANDROID_SIGNING_KEY == null && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1811,7 +1876,7 @@ jobs:
             done
 
       - name: Publish debian/rpm package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -1847,7 +1912,7 @@ jobs:
             cd res && HBB=`pwd`/.. FLUTTER=1 makepkg -f
 
       - name: Publish archlinux package
-        if: matrix.job.arch == 'x86_64' && env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -2153,7 +2218,7 @@ jobs:
         shell: bash
 
       - name: Publish debian package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -2397,7 +2462,7 @@ jobs:
           done
 
       - name: Publish debian package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -2457,7 +2522,7 @@ jobs:
           cmp AppDir/AppRun appimage-build/AppRun/v2.0.0/AppRun-Release-${{ matrix.job.arch }}
 
       - name: Publish appimage package
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -2543,6 +2608,7 @@ jobs:
             flatpak build-bundle ./repo rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak com.rustdesk.RustDesk
 
       - name: Publish flatpak package
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true
@@ -2626,7 +2692,7 @@ jobs:
           popd
 
       - name: Publish web
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: ${{ false }} # disabled: fork has no release permission
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           prerelease: true

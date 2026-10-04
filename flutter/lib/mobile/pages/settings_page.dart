@@ -38,6 +38,104 @@ class SettingsPage extends StatefulWidget implements PageShape {
 
 const url = 'https://rustdesk.com/';
 
+// ==== 自定义客户端：自建服务器预设（安卓端一键切换） ====
+// 设为 false 可恢复「手动编辑 ID/Relay 服务器」入口
+const bool _kLockServerConfig = true;
+// 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
+const Map<String, List<String>> _kPresetServers = {
+  'bbs.ahwt.cc（默认·免登录）': [
+    'bbs.ahwt.cc',
+    'bbs.ahwt.cc',
+    '',
+    '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+  ],
+  'ak.ahwt.xyz（后台·需账号登录）': [
+    'ak.ahwt.xyz',
+    'ak.ahwt.xyz',
+    'http://ak.ahwt.xyz:21114',
+    '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+  ],
+};
+
+String _currentPresetServerName() {
+  final cur = bind.mainGetOptionSync(key: 'custom-rendezvous-server');
+  for (final e in _kPresetServers.entries) {
+    if (e.value[0] == cur) return e.key;
+  }
+  return cur.isEmpty ? '官方公共服务器' : cur;
+}
+
+Future<void> showPresetServerSwitcher(BuildContext context) async {
+  final cur = bind.mainGetOptionSync(key: 'custom-rendezvous-server');
+  final curName = _currentPresetServerName();
+  await showDialog(
+    context: context,
+    builder: (ctx) => SimpleDialog(
+      title: Text(translate('切换自建服务器')),
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+          child: Text(
+            '当前使用: $curName',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+        ..._kPresetServers.entries.map((e) {
+          final c = e.value;
+          final active = c[0] == cur;
+          return SimpleDialogOption(
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              final ok = await setServerConfig(
+                null,
+                null,
+                ServerConfig(
+                  idServer: c[0],
+                  relayServer: c[1],
+                  apiServer: c[2],
+                  key: c[3],
+                ),
+              );
+              showToast(ok ? '已切换到 ${e.key}' : '服务器配置无效，切换失败');
+              if (ok && e.key.contains('ak.ahwt.xyz')) {
+                showToast('该服务器带后台：如需管理功能，请先在「账号」里登录');
+              }
+            },
+            child: Row(
+              children: [
+                Icon(
+                  active ? Icons.check_circle : Icons.swap_horiz,
+                  size: 20,
+                  color: active ? Colors.green : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(translate(e.key)),
+                      Text(
+                        c[0],
+                        style:
+                            const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+        SimpleDialogOption(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: Text(translate('Close')),
+        ),
+      ],
+    ),
+  );
+}
+// ==== 自建服务器预设结束 ====
+
 enum KeepScreenOn {
   never,
   duringControlled,
@@ -134,7 +232,7 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
         bind.mainGetOptionSync(key: kOptionAllowAutoDisconnect));
     _autoDisconnectTimeout =
         bind.mainGetOptionSync(key: kOptionAutoDisconnectTimeout);
-    _hideServer =
+    _hideServer = _kLockServerConfig ||
         bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
     _hideProxy = bind.mainGetBuildinOption(key: kOptionHideProxySetting) == 'Y';
     _hideNetwork =
@@ -748,6 +846,12 @@ class _SettingsState extends State<SettingsPage> with WidgetsBindingObserver {
             ],
           ),
         SettingsSection(title: Text(translate("Settings")), tiles: [
+          SettingsTile(
+              title: Text('切换自建服务器'),
+              leading: Icon(Icons.swap_horizontal_circle_outlined),
+              trailing: Text(_currentPresetServerName(),
+                  style: const TextStyle(fontSize: 12)),
+              onPressed: (context) => showPresetServerSwitcher(context)),
           if (!disabledSettings && !_hideNetwork && !_hideServer)
             SettingsTile(
                 title: Text(translate('ID/Relay Server')),

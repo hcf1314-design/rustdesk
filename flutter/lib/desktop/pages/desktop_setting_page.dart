@@ -1749,6 +1749,97 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
 
   final scrollController = ScrollController();
 
+  // ==== 自建服务器预设（一键切换） ====
+  // 设为 false 可恢复手动编辑 ID/Relay 服务器配置
+  static const _kLockServerConfig = true;
+  // 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
+  static const _presetServers = <String, List<String>>{
+    'bbs.ahwt.cc（默认·免登录）': [
+      'bbs.ahwt.cc',
+      'bbs.ahwt.cc',
+      '',
+      '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+    ],
+    'ak.ahwt.xyz（后台·需账号登录）': [
+      'ak.ahwt.xyz',
+      'ak.ahwt.xyz',
+      'http://ak.ahwt.xyz:21114',
+      '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+    ],
+  };
+
+  String _currentPresetName() {
+    final cur = bind.mainGetOptionSync(key: 'custom-rendezvous-server');
+    for (final e in _presetServers.entries) {
+      if (e.value[0] == cur) return e.key;
+    }
+    return cur.isEmpty ? '官方公共服务器' : cur;
+  }
+
+  void _showServerSwitchDialog() {
+    gFFI.dialogManager.show((dialogSetState, close, context) {
+      final cur = bind.mainGetOptionSync(key: 'custom-rendezvous-server');
+      return CustomAlertDialog(
+        title: Text(translate('切换自建服务器')),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(minWidth: 340),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '当前使用: ${_currentPresetName()}',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              SizedBox(height: 12),
+              ..._presetServers.keys.map((name) {
+                final c = _presetServers[name]!;
+                final active = c[0] == cur;
+                return Card(
+                  margin: EdgeInsets.symmetric(vertical: 4),
+                  elevation: 0,
+                  color: active
+                      ? Theme.of(context).colorScheme.primaryContainer
+                      : Theme.of(context).cardColor,
+                  child: ListTile(
+                    dense: true,
+                    title: Text(translate(name)),
+                    subtitle: Text(c[0], style: TextStyle(fontSize: 12)),
+                    trailing: active
+                        ? Icon(Icons.check_circle, color: Colors.green)
+                        : Icon(Icons.swap_horiz),
+                    onTap: () async {
+                      close();
+                      final ok = await setServerConfig(
+                          null,
+                          null,
+                          ServerConfig(
+                              idServer: c[0],
+                              relayServer: c[1],
+                              apiServer: c[2],
+                              key: c[3]));
+                      showToast(ok
+                          ? '已切换到 $name，正在重连...'
+                          : '服务器配置无效，切换失败');
+                      if (ok && name.contains('ak.ahwt.xyz')) {
+                        showToast('该服务器带后台：如需管理功能，请在主界面右上角点击"登录"');
+                      }
+                      setState(() {});
+                    },
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          dialogButton(translate('Close'), onPressed: close, isOutline: true),
+        ],
+      );
+    });
+  }
+  // ==== 自建服务器预设结束 ====
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -1767,7 +1858,8 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   }
 
   Widget network(BuildContext context) {
-    final hideServer =
+    // 自定义客户端：锁定服务器配置，仅允许通过“切换自建服务器”切换
+    final hideServer = _kLockServerConfig ||
         bind.mainGetBuildinOption(key: kOptionHideServerSetting) == 'Y';
     final hideProxy =
         isWeb || bind.mainGetBuildinOption(key: kOptionHideProxySetting) == 'Y';
@@ -1862,6 +1954,13 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              listTile(
+                icon: Icons.swap_horizontal_circle_outlined,
+                title: '切换自建服务器',
+                trailing: Text(_currentPresetName()),
+                onTap: _showServerSwitchDialog,
+              ),
+              divider,
               if (!hideServer)
                 listTile(
                   icon: Icons.dns_outlined,

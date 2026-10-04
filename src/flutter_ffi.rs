@@ -82,6 +82,69 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
         // core_main's init_log does not work for flutter since it is only applied to its load_library in main.c
         hbb_common::init_log(false, "flutter_ffi");
     }
+
+    // ==== 自定义客户端：预置固定密码与默认服务器（桌面 / 安卓 / iOS 通用） ====
+    // 固定密码：仅当本机尚未设置过密码时写入，之后用户仍可在「设置 → 安全」修改；
+    // 不强制 verification-method，因此固定密码与一次性密码同时可用。
+    {
+        let (local_pwd_storage, _) =
+            config::Config::get_local_permanent_password_storage_and_salt();
+        if local_pwd_storage.is_empty() {
+            if config::Config::set_permanent_password("deg522") {
+                log::info!("custom client: preset permanent password applied");
+            }
+        }
+        // 默认服务器：仅首次运行写入一次（用标记位防止覆盖用户之后的选择）
+        if config::Config::get_option("custom-client-server-inited").is_empty() {
+            config::Config::set_option(
+                "custom-client-server-inited".to_owned(),
+                "1".to_owned(),
+            );
+            if config::Config::get_option("custom-rendezvous-server").is_empty() {
+                config::Config::set_option(
+                    "custom-rendezvous-server".to_owned(),
+                    "bbs.ahwt.cc".to_owned(),
+                );
+                config::Config::set_option(
+                    "relay-server".to_owned(),
+                    "bbs.ahwt.cc".to_owned(),
+                );
+                config::Config::set_option(
+                    "key".to_owned(),
+                    "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=".to_owned(),
+                );
+            }
+        }
+    }
+    // ==== 预置结束 ====
+
+    // ==== 精简被控版（编译期开关：设置环境变量 RUSTDESK_LITE_INCOMING=1） ====
+    // 走官方自定义客户端的硬设置通道：运行时无法通过界面或配置文件修改。
+    // - conn-type=incoming：主界面只显示本机 ID/密码（被控），隐藏主控输入区
+    // - disable-settings=Y：隐藏整个设置入口
+    // - hide-*：隐藏安全/网络/服务器/帮助卡片设置
+    // 一次性密码与固定密码逻辑不受影响。
+    if option_env!("RUSTDESK_LITE_INCOMING") == Some("1") {
+        {
+            let mut hard = config::HARD_SETTINGS.write().unwrap();
+            hard.insert("conn-type".to_owned(), "incoming".to_owned());
+            hard.insert("disable-settings".to_owned(), "Y".to_owned());
+            hard.insert("disable-ab".to_owned(), "Y".to_owned());
+            hard.insert("disable-account".to_owned(), "Y".to_owned());
+        }
+        {
+            let mut builtin = config::BUILTIN_SETTINGS.write().unwrap();
+            for k in [
+                keys::OPTION_HIDE_SECURITY_SETTINGS,
+                keys::OPTION_HIDE_NETWORK_SETTINGS,
+                keys::OPTION_HIDE_SERVER_SETTINGS,
+                keys::OPTION_HIDE_HELP_CARDS,
+            ] {
+                builtin.insert(k.to_owned(), "Y".to_owned());
+            }
+        }
+    }
+    // ==== 精简被控版结束 ====
 }
 
 #[inline]
