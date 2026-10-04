@@ -1049,13 +1049,15 @@ jobs:
       - name: Download Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: rustdesk-unsigned-windows-x86_64
+          # 精简被控版的 Windows 产物名带 -lite（见上方 Upload unsigned 步骤），
+          # 这里必须跟着一起变，否则精简版构建会在这步报 artifact 找不到。
+          name: rustdesk-unsigned-windows${{ inputs.lite == true && '-lite' || '' }}-x86_64
           path: ./windows-x86_64/
 
       - name: Download Artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: rustdesk-unsigned-windows-aarch64
+          name: rustdesk-unsigned-windows${{ inputs.lite == true && '-lite' || '' }}-aarch64
           path: ./windows-aarch64/
 
       - name: Download Artifacts
