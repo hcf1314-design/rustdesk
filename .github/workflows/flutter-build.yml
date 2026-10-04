@@ -13,6 +13,10 @@ on:
         description: "精简被控版（仅被控，锁定设置）"
         type: boolean
         default: false
+      selfsign:
+        description: "用自签名证书给 Windows 产物签名（需要 SELFSIGN_PFX secrets）"
+        type: boolean
+        default: true
 
 # NOTE: F-Droid builder script 'flutter/build_fdroid.sh' reads environment
 # variables from this workflow!
@@ -144,6 +148,9 @@ jobs:
       # 精简被控版：编译期注入仅被控/锁定设置的硬编码（src/flutter_ffi.rs），只影响 Windows
       LITE_SUFFIX: "${{ inputs.lite == true && '-lite' || '' }}"
       RUSTDESK_LITE_INCOMING: "${{ inputs.lite == true && '1' || '' }}"
+      # 自签名开关：secrets 不能用在 if 里，转成 env 再判断；
+      # inputs.selfsign 为 true 且证书 secret 存在时才执行 Self-sign 步骤
+      SELFSIGN_ENABLED: "${{ inputs.selfsign != false && secrets.SELFSIGN_PFX_BASE64 != null && '1' || '' }}"
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -371,7 +378,7 @@ jobs:
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./rustdesk/
 
       - name: Self-sign rustdesk exe (portable)
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: env.UPLOAD_ARTIFACT == 'true' && env.SELFSIGN_ENABLED == '1'
         continue-on-error: true
         shell: pwsh
         run: |
@@ -478,7 +485,7 @@ jobs:
           BASE_URL=${{ env.SIGN_BASE_URL }} SECRET_KEY=${{ secrets.SIGN_SECRET_KEY }} python3 res/job.py sign_files ./SignOutput
 
       - name: Self-sign self-extracted exe and msi
-        if: env.UPLOAD_ARTIFACT == 'true'
+        if: env.UPLOAD_ARTIFACT == 'true' && env.SELFSIGN_ENABLED == '1'
         continue-on-error: true
         shell: pwsh
         run: |

@@ -10,6 +10,10 @@ on:
         description: "精简被控版（仅被控，锁定设置）"
         type: boolean
         default: false
+      selfsign:
+        description: "用自签名证书给 Windows 产物签名"
+        type: boolean
+        default: true
 
 jobs:
   run-flutter-nightly-build:
@@ -19,3 +23,4 @@ jobs:
       upload-artifact: true
       upload-tag: "nightly"
       lite: ${{ inputs.lite == true }}
+      selfsign: ${{ inputs.selfsign != false }}
