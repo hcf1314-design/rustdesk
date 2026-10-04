@@ -13,6 +13,7 @@ use crate::{
 };
 use flutter_rust_bridge::{StreamSink, SyncReturn};
 use hbb_common::{
+    bail,
     config::{self, LocalConfig, PeerConfig, PeerInfoSerde},
     lazy_static, log,
     rendezvous_proto::ConnType,
@@ -43,7 +44,7 @@ lazy_static::lazy_static! {
 fn preset_account_login(user: &str, pass: &str) -> ResultType<()> {
     let api = get_api_server();
     if api.is_empty() {
-        anyhow::bail!("api server is not configured yet");
+        bail!("api server is not configured yet");
     }
     let body = serde_json::json!({
         "username": user,
@@ -54,16 +55,16 @@ fn preset_account_login(user: &str, pass: &str) -> ResultType<()> {
         "type": "account",
     })
     .to_string();
-    let text = crate::common::post_request_sync(format!("{}/api/login", api), body, "")?;
+    let text = crate::post_request_sync(format!("{}/api/login", api), body, "")?;
     let v: serde_json::Value = serde_json::from_str(&text)?;
     if let Some(err) = v.get("error") {
         if !err.is_null() {
-            anyhow::bail!("server rejected login: {}", err);
+            bail!("server rejected login: {}", err);
         }
     }
     let token = v.get("access_token").and_then(|t| t.as_str()).unwrap_or("");
     if token.is_empty() {
-        anyhow::bail!(
+        bail!(
             "no access_token in login response (2FA enabled?): {}",
             text.chars().take(160).collect::<String>()
         );
