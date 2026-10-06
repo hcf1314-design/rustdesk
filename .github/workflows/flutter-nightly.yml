@@ -15,7 +15,7 @@ on:
         type: boolean
         default: true
       preset_server:
-        description: "首启默认服务器：留空=bbs，ak=ak 默认版"
+        description: "首启默认服务器：留空=bbs(阿里云)，ak=NAS(ak.ahwt.xyz)，cc=阿里云(rustdesk.ahwt.cc)"
         type: string
         default: ""
 

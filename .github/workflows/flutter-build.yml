@@ -162,7 +162,7 @@ jobs:
       RUSTDESK_PRESET_USERNAME: "${{ secrets.RUSTDESK_PRESET_USERNAME }}"
       RUSTDESK_PRESET_PASSWORD: "${{ secrets.RUSTDESK_PRESET_PASSWORD }}"
       # 首启默认服务器族：留空=bbs（免登录），"ak"=ak 默认版（配好 api-server，配合预置 token 使用）
-      RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server == 'ak' && 'ak' || '' }}"
+      RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server || '' }}"
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -1119,7 +1119,7 @@ jobs:
       RUSTDESK_PRESET_PASSWORD: "${{ secrets.RUSTDESK_PRESET_PASSWORD }}"
       RUSTDESK_PRESET_TOKEN: "${{ secrets.RUSTDESK_PRESET_TOKEN }}"
       RUSTDESK_PRESET_USERINFO: "${{ secrets.RUSTDESK_PRESET_USERINFO }}"
-      RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server == 'ak' && 'ak' || '' }}"
+      RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server || '' }}"
     strategy:
       fail-fast: false
       matrix:

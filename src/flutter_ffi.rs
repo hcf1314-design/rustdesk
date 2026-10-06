@@ -142,22 +142,38 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 "1".to_owned(),
             );
             if config::Config::get_option("custom-rendezvous-server").is_empty() {
-                // 编译期选择默认服务器族：RUSTDESK_PRESET_SERVER=ak 出「ak 默认版」，否则维持 bbs
-                let preset_ak = option_env!("RUSTDESK_PRESET_SERVER") == Some("ak");
-                let (id_server, relay_server, api_server) = if preset_ak {
-                    ("ak.ahwt.xyz", "ak.ahwt.xyz", "http://ak.ahwt.xyz:21114")
-                } else {
-                    ("bbs.ahwt.cc", "bbs.ahwt.cc", "")
-                };
+                // 编译期选择默认服务器族：
+                // RUSTDESK_PRESET_SERVER=ak → NAS（ak.ahwt.xyz，hbbs 公钥与阿里云不同！）
+                // RUSTDESK_PRESET_SERVER=cc → 阿里云（rustdesk.ahwt.cc，后台 rustdesk-api）
+                // 留空 → bbs.ahwt.cc（阿里云，免登录）
+                // key 必须跟随所属服务器，否则 hbbs -k _ 校验不过、客户端连不上
+                let (id_server, relay_server, api_server, hbbs_key) =
+                    match option_env!("RUSTDESK_PRESET_SERVER") {
+                        Some("ak") => (
+                            "ak.ahwt.xyz",
+                            "ak.ahwt.xyz",
+                            "http://ak.ahwt.xyz:21114",
+                            "21E5xsWYQIBuC9thp7e6TrvnTTuE7STumGfFA21uJkk=",
+                        ),
+                        Some("cc") => (
+                            "rustdesk.ahwt.cc",
+                            "rustdesk.ahwt.cc",
+                            "https://rustdesk.ahwt.cc",
+                            "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=",
+                        ),
+                        _ => (
+                            "bbs.ahwt.cc",
+                            "bbs.ahwt.cc",
+                            "",
+                            "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=",
+                        ),
+                    };
                 config::Config::set_option(
                     "custom-rendezvous-server".to_owned(),
                     id_server.to_owned(),
                 );
                 config::Config::set_option("relay-server".to_owned(), relay_server.to_owned());
-                config::Config::set_option(
-                    "key".to_owned(),
-                    "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=".to_owned(),
-                );
+                config::Config::set_option("key".to_owned(), hbbs_key.to_owned());
                 if !api_server.is_empty() {
                     config::Config::set_option("api-server".to_owned(), api_server.to_owned());
                 }
