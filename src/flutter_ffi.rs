@@ -142,32 +142,24 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 "1".to_owned(),
             );
             if config::Config::get_option("custom-rendezvous-server").is_empty() {
-                // 编译期选择默认服务器族：
-                // RUSTDESK_PRESET_SERVER=ak → NAS（ak.ahwt.xyz，hbbs 公钥与阿里云不同！）
-                // RUSTDESK_PRESET_SERVER=cc → 阿里云（rustdesk.ahwt.cc，后台 rustdesk-api）
+                // 编译期选择默认服务器（仅决定地址；key 全网统一）：
+                // RUSTDESK_PRESET_SERVER=ak → ak.ahwt.xyz（PVE 上的 RustDesk 服务）
+                // RUSTDESK_PRESET_SERVER=cc → rustdesk.ahwt.cc（阿里云 + rustdesk-api 后台）
                 // 留空 → bbs.ahwt.cc（阿里云，免登录）
-                // key 必须跟随所属服务器，否则 hbbs -k _ 校验不过、客户端连不上
-                let (id_server, relay_server, api_server, hbbs_key) =
+                //
+                // 注意：ak.ahwt.xyz 与 rustdesk.ahwt.cc 两台服务器的 hbbs 共用同一对密钥
+                // （均为 5Skq…），所以客户端在设置里切换服务器时只需改地址，key 不用动。
+                let (id_server, relay_server, api_server) =
                     match option_env!("RUSTDESK_PRESET_SERVER") {
-                        Some("ak") => (
-                            "ak.ahwt.xyz",
-                            "ak.ahwt.xyz",
-                            "http://ak.ahwt.xyz:21114",
-                            "21E5xsWYQIBuC9thp7e6TrvnTTuE7STumGfFA21uJkk=",
-                        ),
+                        Some("ak") => ("ak.ahwt.xyz", "ak.ahwt.xyz", "http://ak.ahwt.xyz:21114"),
                         Some("cc") => (
                             "rustdesk.ahwt.cc",
                             "rustdesk.ahwt.cc",
                             "https://rustdesk.ahwt.cc",
-                            "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=",
                         ),
-                        _ => (
-                            "bbs.ahwt.cc",
-                            "bbs.ahwt.cc",
-                            "",
-                            "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=",
-                        ),
+                        _ => ("bbs.ahwt.cc", "bbs.ahwt.cc", ""),
                     };
+                let hbbs_key = "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=";
                 config::Config::set_option(
                     "custom-rendezvous-server".to_owned(),
                     id_server.to_owned(),
@@ -243,25 +235,22 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     // ==== 预置账号自动登录结束 ====
 
     // ==== 精简被控版（编译期开关：设置环境变量 RUSTDESK_LITE_INCOMING=1） ====
-    // 走官方自定义客户端的硬设置通道：运行时无法通过界面或配置文件修改。
     // - conn-type=incoming：主界面只显示本机 ID/密码（被控），隐藏主控输入区
-    // - disable-settings=Y：隐藏整个设置入口
-    // - hide-*：隐藏安全/网络/服务器/帮助卡片设置
+    // - 保留设置入口，且保留「网络 / 服务器」设置：被控端需要能自行切换 ID/中继服务器
+    // - hide-安全 / hide-帮助：其余卡片仍隐藏，避免被控端被误改
     // 一次性密码与固定密码逻辑不受影响。
     if option_env!("RUSTDESK_LITE_INCOMING") == Some("1") {
         {
             let mut hard = config::HARD_SETTINGS.write().unwrap();
             hard.insert("conn-type".to_owned(), "incoming".to_owned());
-            hard.insert("disable-settings".to_owned(), "Y".to_owned());
             hard.insert("disable-ab".to_owned(), "Y".to_owned());
             hard.insert("disable-account".to_owned(), "Y".to_owned());
         }
         {
             let mut builtin = config::BUILTIN_SETTINGS.write().unwrap();
+            // 不再隐藏「网络」「服务器」设置 —— 让被控端也能切换服务器
             for k in [
                 keys::OPTION_HIDE_SECURITY_SETTINGS,
-                keys::OPTION_HIDE_NETWORK_SETTINGS,
-                keys::OPTION_HIDE_SERVER_SETTINGS,
                 keys::OPTION_HIDE_HELP_CARDS,
             ] {
                 builtin.insert(k.to_owned(), "Y".to_owned());
