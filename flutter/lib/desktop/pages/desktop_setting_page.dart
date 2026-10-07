@@ -1756,7 +1756,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   static const _kHbbsKey = '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=';
   // 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
   static const _presetServers = <String, List<String>>{
-    '服务器1：RustDesk': [
+    '服务器1：RustDesk（默认）': [
       'rustdesk.ahwt.cc',
       'rustdesk.ahwt.cc',
       'https://rustdesk.ahwt.cc',
@@ -1768,11 +1768,6 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
       'http://ak.ahwt.xyz:21114',
       _kHbbsKey,
     ],
-  };
-  // 列表里的说明文字，不出现完整域名
-  static const _presetServerDesc = <String, String>{
-    '服务器1：RustDesk': '阿里云服务器（默认）',
-    '服务器2：ak': '家宽自建服务器',
   };
 
   String _currentPresetName() {
@@ -1811,8 +1806,6 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                   child: ListTile(
                     dense: true,
                     title: Text(translate(name)),
-                    subtitle: Text(_presetServerDesc[name] ?? '',
-                        style: TextStyle(fontSize: 12)),
                     trailing: active
                         ? Icon(Icons.check_circle, color: Colors.green)
                         : Icon(Icons.swap_horiz),

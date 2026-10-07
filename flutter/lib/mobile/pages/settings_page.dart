@@ -45,7 +45,7 @@ const bool _kLockServerConfig = true;
 const String _kHbbsKey = '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=';
 // 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
 const Map<String, List<String>> _kPresetServers = {
-  '服务器1：RustDesk': [
+  '服务器1：RustDesk（默认）': [
     'rustdesk.ahwt.cc',
     'rustdesk.ahwt.cc',
     'https://rustdesk.ahwt.cc',
@@ -57,11 +57,6 @@ const Map<String, List<String>> _kPresetServers = {
     'http://ak.ahwt.xyz:21114',
     _kHbbsKey,
   ],
-};
-// 列表里的说明文字，不出现完整域名
-const Map<String, String> _kPresetServerDesc = {
-  '服务器1：RustDesk': '阿里云服务器（默认）',
-  '服务器2：ak': '家宽自建服务器',
 };
 
 String _currentPresetServerName() {
@@ -118,11 +113,6 @@ Future<void> showPresetServerSwitcher(BuildContext context) async {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(translate(e.key)),
-                      Text(
-                        _kPresetServerDesc[e.key] ?? '',
-                        style:
-                            const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
                     ],
                   ),
                 ),
