@@ -1222,7 +1222,9 @@ pub fn main_set_option(key: String, value: String) {
     // 切换自建服务器（api-server 变化）后，自动用预置账号重新登录新后台。
     // Dart 侧 setServerConfig 在 api 变化时会异步 logOut 清掉旧 token，
     // 登录线程里会先等它清完再登，避免竞态。
-    let old_api_server = if key == "api-server" {
+    // 注意：下面 set_option(key, ..) 会取走 key 的所有权，所以这里先把判断结果存下来
+    let is_api_server_key = key == "api-server";
+    let old_api_server = if is_api_server_key {
         Some(config::Config::get_option("api-server"))
     } else {
         None
@@ -1284,7 +1286,7 @@ pub fn main_set_option(key: String, value: String) {
     } else {
         set_option(key, value.clone());
     }
-    if key == "api-server"
+    if is_api_server_key
         && !value.is_empty()
         && old_api_server.as_deref() != Some(value.as_str())
     {
