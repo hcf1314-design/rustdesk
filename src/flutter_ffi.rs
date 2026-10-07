@@ -70,6 +70,8 @@ fn preset_account_login(user: &str, pass: &str) -> ResultType<()> {
         );
     }
     LocalConfig::set_option("access_token".to_owned(), token.to_owned());
+    // 记录这个 token 属于哪台后台：之后切换服务器时据此判断要不要重新登录
+    LocalConfig::set_option("custom-client-token-api".to_owned(), api.to_owned());
     if let Some(u) = v.get("user") {
         if !u.is_null() {
             LocalConfig::set_option("user_info".to_owned(), u.to_string());
@@ -77,6 +79,52 @@ fn preset_account_login(user: &str, pass: &str) -> ResultType<()> {
     }
     log::info!("custom client: preset account auto login ok");
     Ok(())
+}
+
+/// 编译期注入的预置账号（未注入则返回 None）
+fn preset_account_creds() -> Option<(String, String)> {
+    let (user, pass) = (
+        option_env!("RUSTDESK_PRESET_USERNAME")?,
+        option_env!("RUSTDESK_PRESET_PASSWORD")?,
+    );
+    if user.is_empty() || pass.is_empty() {
+        return None;
+    }
+    Some((user.to_owned(), pass.to_owned()))
+}
+
+/// 后台线程尝试预置账号登录（最多 3 次，间隔 15s）。
+/// wait_clear_seconds > 0 时先等旧登录态被清掉 —— 切换服务器后 Dart 侧会异步 logOut，
+/// 不等的话可能出现「刚登上就被 reset 抹掉」的竞态。
+/// 登录判断：无 token、或 token 属于另一台服务器（custom-client-token-api 与当前 api-server 不符）时才登录。
+fn spawn_preset_account_login_thread(wait_clear_seconds: usize) {
+    let Some((user, pass)) = preset_account_creds() else {
+        return;
+    };
+    std::thread::spawn(move || {
+        for _ in 0..wait_clear_seconds {
+            if LocalConfig::get_option("access_token").is_empty() {
+                break;
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        }
+        for attempt in 1..=3 {
+            let token = LocalConfig::get_option("access_token");
+            let token_api = LocalConfig::get_option("custom-client-token-api");
+            if !token.is_empty() && token_api == get_api_server() {
+                return; // 已持有当前服务器的登录态
+            }
+            match preset_account_login(&user, &pass) {
+                Ok(()) => return,
+                Err(e) => log::warn!(
+                    "custom client: preset account auto login attempt {attempt} failed: {e}"
+                ),
+            }
+            if attempt < 3 {
+                std::thread::sleep(Duration::from_secs(15));
+            }
+        }
+    });
 }
 
 fn initialize(app_dir: &str, custom_client_config: &str) {
@@ -197,38 +245,14 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
     // ==== 自定义客户端：预置账号密码，开机自动登录（编译期注入 RUSTDESK_PRESET_USERNAME / PASSWORD）====
     // 与上面的 token 预置互补：只有账号密码时，让本机自己调 /api/login，换取一个属于本机的
     // token（这样既不怕「token 按设备绑定」，token 过期也能自愈）。
-    // 仅在本机当前无登录态时触发，且每个进程只尝试一次，断网时不会反复请求拖慢启动。
+    // 触发条件：本机无登录态，或登录态属于另一台服务器（切换服务器后自动改登新后台）。
     {
-        if let (Some(user), Some(pass)) = (
-            option_env!("RUSTDESK_PRESET_USERNAME"),
-            option_env!("RUSTDESK_PRESET_PASSWORD"),
-        ) {
-            if !user.is_empty()
-                && !pass.is_empty()
-                && LocalConfig::get_option("access_token").is_empty()
-            {
-                static TRIED: std::sync::atomic::AtomicBool =
-                    std::sync::atomic::AtomicBool::new(false);
-                if !TRIED.swap(true, std::sync::atomic::Ordering::SeqCst) {
-                    let (user, pass) = (user.to_owned(), pass.to_owned());
-                    // 放后台线程：网络不通时不能让启动流程干等；设备可能先开机后联网，做几次轻量重试
-                    std::thread::spawn(move || {
-                        for attempt in 1..=3 {
-                            if !LocalConfig::get_option("access_token").is_empty() {
-                                return; // 已经登录上了（手动或上一次重试成功）
-                            }
-                            match preset_account_login(&user, &pass) {
-                                Ok(()) => return,
-                                Err(e) => log::warn!(
-                                    "custom client: preset account auto login attempt {attempt} failed: {e}"
-                                ),
-                            }
-                            if attempt < 3 {
-                                std::thread::sleep(std::time::Duration::from_secs(15));
-                            }
-                        }
-                    });
-                }
+        if preset_account_creds().is_some() {
+            static TRIED: std::sync::atomic::AtomicBool =
+                std::sync::atomic::AtomicBool::new(false);
+            if !TRIED.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                // 放后台线程：网络不通时不能让启动流程干等；设备可能先开机后联网，做几次轻量重试
+                spawn_preset_account_login_thread(0);
             }
         }
     }
@@ -245,6 +269,20 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
             hard.insert("conn-type".to_owned(), "incoming".to_owned());
             hard.insert("disable-ab".to_owned(), "Y".to_owned());
             hard.insert("disable-account".to_owned(), "Y".to_owned());
+        }
+        {
+            // 被控端固定「密码验收 + 两种密码都可用」（写入 OVERWRITE，优先级高于本机旧配置）：
+            // - approve-mode=password：无人值守，无需有人在机器前点「接受」
+            // - verification-method=use-both-passwords：一次性密码照常显示/刷新，
+            //   deg522 固定密码也继续可用。顺带修掉机器历史配置里 use-permanent-password
+            //   或 approve-mode=click 导致主界面一次性密码显示「-」的问题（精简版藏了
+            //   安全卡片，用户没法自己在界面里改回来）
+            let mut overwrite = config::OVERWRITE_SETTINGS.write().unwrap();
+            overwrite.insert("approve-mode".to_owned(), "password".to_owned());
+            overwrite.insert(
+                "verification-method".to_owned(),
+                "use-both-passwords".to_owned(),
+            );
         }
         {
             let mut builtin = config::BUILTIN_SETTINGS.write().unwrap();
@@ -1181,6 +1219,14 @@ pub fn main_get_error() -> String {
 }
 
 pub fn main_set_option(key: String, value: String) {
+    // 切换自建服务器（api-server 变化）后，自动用预置账号重新登录新后台。
+    // Dart 侧 setServerConfig 在 api 变化时会异步 logOut 清掉旧 token，
+    // 登录线程里会先等它清完再登，避免竞态。
+    let old_api_server = if key == "api-server" {
+        Some(config::Config::get_option("api-server"))
+    } else {
+        None
+    };
     #[cfg(target_os = "android")]
     {
         let is_permission_option = key.eq(keys::OPTION_ENABLE_CLIPBOARD)
@@ -1237,6 +1283,12 @@ pub fn main_set_option(key: String, value: String) {
         crate::common::test_rendezvous_server();
     } else {
         set_option(key, value.clone());
+    }
+    if key == "api-server"
+        && !value.is_empty()
+        && old_api_server.as_deref() != Some(value.as_str())
+    {
+        spawn_preset_account_login_thread(10);
     }
 }
 

@@ -1752,20 +1752,27 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
   // ==== 自建服务器预设（一键切换） ====
   // 设为 false 可恢复手动编辑 ID/Relay 服务器配置
   static const _kLockServerConfig = true;
+  // 展示名不含完整域名/IP（防止拿到客户端的人拿到服务器地址）；key 两台共用
+  static const _kHbbsKey = '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=';
   // 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
   static const _presetServers = <String, List<String>>{
-    'bbs.ahwt.cc（默认·免登录）': [
-      'bbs.ahwt.cc',
-      'bbs.ahwt.cc',
-      '',
-      '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+    '服务器1：RustDesk': [
+      'rustdesk.ahwt.cc',
+      'rustdesk.ahwt.cc',
+      'https://rustdesk.ahwt.cc',
+      _kHbbsKey,
     ],
-    'ak.ahwt.xyz（后台·需账号登录）': [
+    '服务器2：ak': [
       'ak.ahwt.xyz',
       'ak.ahwt.xyz',
       'http://ak.ahwt.xyz:21114',
-      '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+      _kHbbsKey,
     ],
+  };
+  // 列表里的说明文字，不出现完整域名
+  static const _presetServerDesc = <String, String>{
+    '服务器1：RustDesk': '阿里云服务器（默认）',
+    '服务器2：ak': '家宽自建服务器',
   };
 
   String _currentPresetName() {
@@ -1773,7 +1780,7 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
     for (final e in _presetServers.entries) {
       if (e.value[0] == cur) return e.key;
     }
-    return cur.isEmpty ? '官方公共服务器' : cur;
+    return cur.isEmpty ? '官方公共服务器' : '自定义';
   }
 
   void _showServerSwitchDialog() {
@@ -1804,7 +1811,8 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                   child: ListTile(
                     dense: true,
                     title: Text(translate(name)),
-                    subtitle: Text(c[0], style: TextStyle(fontSize: 12)),
+                    subtitle: Text(_presetServerDesc[name] ?? '',
+                        style: TextStyle(fontSize: 12)),
                     trailing: active
                         ? Icon(Icons.check_circle, color: Colors.green)
                         : Icon(Icons.swap_horiz),
@@ -1819,11 +1827,8 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
                               apiServer: c[2],
                               key: c[3]));
                       showToast(ok
-                          ? '已切换到 $name，正在重连...'
+                          ? '已切换到 $name，正在重连...（后台账号会自动登录）'
                           : '服务器配置无效，切换失败');
-                      if (ok && name.contains('ak.ahwt.xyz')) {
-                        showToast('该服务器带后台：如需管理功能，请在主界面右上角点击"登录"');
-                      }
                       setState(() {});
                     },
                   ),

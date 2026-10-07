@@ -41,20 +41,27 @@ const url = 'https://rustdesk.com/';
 // ==== 自定义客户端：自建服务器预设（安卓端一键切换） ====
 // 设为 false 可恢复「手动编辑 ID/Relay 服务器」入口
 const bool _kLockServerConfig = true;
+// 展示名不含完整域名/IP（防止拿到客户端的人拿到服务器地址）；key 两台共用
+const String _kHbbsKey = '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=';
 // 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
 const Map<String, List<String>> _kPresetServers = {
-  'bbs.ahwt.cc（默认·免登录）': [
-    'bbs.ahwt.cc',
-    'bbs.ahwt.cc',
-    '',
-    '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+  '服务器1：RustDesk': [
+    'rustdesk.ahwt.cc',
+    'rustdesk.ahwt.cc',
+    'https://rustdesk.ahwt.cc',
+    _kHbbsKey,
   ],
-  'ak.ahwt.xyz（后台·需账号登录）': [
+  '服务器2：ak': [
     'ak.ahwt.xyz',
     'ak.ahwt.xyz',
     'http://ak.ahwt.xyz:21114',
-    '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=',
+    _kHbbsKey,
   ],
+};
+// 列表里的说明文字，不出现完整域名
+const Map<String, String> _kPresetServerDesc = {
+  '服务器1：RustDesk': '阿里云服务器（默认）',
+  '服务器2：ak': '家宽自建服务器',
 };
 
 String _currentPresetServerName() {
@@ -62,7 +69,7 @@ String _currentPresetServerName() {
   for (final e in _kPresetServers.entries) {
     if (e.value[0] == cur) return e.key;
   }
-  return cur.isEmpty ? '官方公共服务器' : cur;
+  return cur.isEmpty ? '官方公共服务器' : '自定义';
 }
 
 Future<void> showPresetServerSwitcher(BuildContext context) async {
@@ -96,10 +103,7 @@ Future<void> showPresetServerSwitcher(BuildContext context) async {
                   key: c[3],
                 ),
               );
-              showToast(ok ? '已切换到 ${e.key}' : '服务器配置无效，切换失败');
-              if (ok && e.key.contains('ak.ahwt.xyz')) {
-                showToast('该服务器带后台：如需管理功能，请先在「账号」里登录');
-              }
+              showToast(ok ? '已切换到 ${e.key}，正在重连...（后台账号会自动登录）' : '服务器配置无效，切换失败');
             },
             child: Row(
               children: [
@@ -115,7 +119,7 @@ Future<void> showPresetServerSwitcher(BuildContext context) async {
                     children: [
                       Text(translate(e.key)),
                       Text(
-                        c[0],
+                        _kPresetServerDesc[e.key] ?? '',
                         style:
                             const TextStyle(fontSize: 12, color: Colors.grey),
                       ),
