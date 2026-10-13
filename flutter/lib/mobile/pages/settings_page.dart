@@ -45,16 +45,10 @@ const bool _kLockServerConfig = true;
 const String _kHbbsKey = '5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=';
 // 每项依次为: [ID服务器, 中继服务器, API服务器, Key]
 const Map<String, List<String>> _kPresetServers = {
-  '服务器1：RustDesk（默认）': [
+  'RustDesk': [
     'rustdesk.ahwt.cc',
     'rustdesk.ahwt.cc',
     'https://rustdesk.ahwt.cc',
-    _kHbbsKey,
-  ],
-  '服务器2：ak': [
-    'ak.ahwt.xyz',
-    'ak.ahwt.xyz',
-    'http://ak.ahwt.xyz:21114',
     _kHbbsKey,
   ],
 };
