@@ -2156,7 +2156,9 @@ async fn secure_tcp_impl(conn: &mut Stream, key: &str, log_on_success: bool) -> 
 /// 就要等满 READ_TIMEOUT（30s）再报 "deadline has elapsed"，带 token / 登录态的连接
 /// 会全部失败（1.5.0 的 `legacy_secure` 分支）。这里改成短等：等不到就按"密钥交换
 /// 之前的服务器"处理，明文继续——这正是 `Ok(false)` 原本的语义。
-const KX_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+/// 单位是毫秒：`hbb_common::timeout()` 的签名是 `timeout(ms: u64, future)`，
+/// 传 `Duration` 会编译不过（仅在部分构建目标上暴露，务必保持 u64）。
+const KX_WAIT_MS: u64 = 3_000;
 /// 已确认不支持密钥交换的 rendezvous 服务器（按地址记），同一次进程内再连它就不空等了。
 static KX_UNAVAILABLE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
@@ -2174,7 +2176,7 @@ async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> Res
     let Some(rs_pk) = rs_pk else {
         bail!("Handshake failed: invalid public key from rendezvous server");
     };
-    match timeout(KX_WAIT, conn.next()).await {
+    match timeout(KX_WAIT_MS, conn.next()).await {
         Ok(Some(Ok(bytes))) => {
             if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
                 match msg_in.union {
@@ -2241,8 +2243,8 @@ async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> Res
                 *known = Some(server);
             }
             log::info!(
-                "Rendezvous server offered no key exchange within {:?}, continuing as with a server from before the exchange",
-                KX_WAIT
+                "Rendezvous server offered no key exchange within {} ms, continuing as with a server from before the exchange",
+                KX_WAIT_MS
             );
         }
     }
