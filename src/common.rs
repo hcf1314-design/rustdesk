@@ -2151,16 +2151,31 @@ async fn secure_tcp_impl(conn: &mut Stream, key: &str, log_on_success: bool) -> 
     key_exchange(conn, key, log_on_success).await.map(|_| ())
 }
 
+/// 自托管 hbbs（开源 rustdesk-server，含最新的 1.1.16）不会在 TCP 连接建立后主动发
+/// KeyExchange：它的 proto 里虽然有这个消息，但服务端代码没有实现。客户端若一直等，
+/// 就要等满 READ_TIMEOUT（30s）再报 "deadline has elapsed"，带 token / 登录态的连接
+/// 会全部失败（1.5.0 的 `legacy_secure` 分支）。这里改成短等：等不到就按"密钥交换
+/// 之前的服务器"处理，明文继续——这正是 `Ok(false)` 原本的语义。
+const KX_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+/// 已确认不支持密钥交换的 rendezvous 服务器（按地址记），同一次进程内再连它就不空等了。
+static KX_UNAVAILABLE: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
 /// The server's key exchange on `conn`. `Ok(true)` once the stream is encrypted. `Ok(false)`
 /// when the server sent something else first, nothing parseable, or closed: `secure_tcp`
 /// tolerates that for servers from before the exchange, `secure_tcp_required` does not.
 async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> ResultType<bool> {
+    let server = Config::get_option("custom-rendezvous-server");
+    if let Ok(known) = KX_UNAVAILABLE.lock() {
+        if known.as_deref() == Some(server.as_str()) {
+            return Ok(false);
+        }
+    }
     let rs_pk = get_rs_pk(key);
     let Some(rs_pk) = rs_pk else {
         bail!("Handshake failed: invalid public key from rendezvous server");
     };
-    match timeout(READ_TIMEOUT, conn.next()).await? {
-        Some(Ok(bytes)) => {
+    match timeout(KX_WAIT, conn.next()).await {
+        Ok(Some(Ok(bytes))) => {
             if let Ok(msg_in) = RendezvousMessage::parse_from_bytes(&bytes) {
                 match msg_in.union {
                     Some(rendezvous_message::Union::KeyExchange(ex)) => {
@@ -2218,7 +2233,18 @@ async fn key_exchange(conn: &mut Stream, key: &str, log_on_success: bool) -> Res
                 }
             }
         }
-        _ => {}
+        Ok(_) => {}
+        Err(_) => {
+            // 连上了但服务器一直没有主动发密钥交换 —— 开源 hbbs 就是这样。按"密钥交换
+            // 之前的服务器"处理（明文继续），并记住结果，省掉后续连接的空等。
+            if let Ok(mut known) = KX_UNAVAILABLE.lock() {
+                *known = Some(server);
+            }
+            log::info!(
+                "Rendezvous server offered no key exchange within {:?}, continuing as with a server from before the exchange",
+                KX_WAIT
+            );
+        }
     }
     Ok(false)
 }
