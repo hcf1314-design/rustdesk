@@ -279,7 +279,7 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
 
     // ==== 精简被控版（编译期开关：设置环境变量 RUSTDESK_LITE_INCOMING=1） ====
     // - conn-type=incoming：主界面只显示本机 ID/密码（被控），隐藏主控输入区
-    // - 保留设置入口，且保留「网络 / 服务器」设置：被控端需要能自行切换 ID/中继服务器
+    // - 隐藏「网络」设置整张卡片：自建服务器现在只有 rustdesk.ahwt.cc 一套，无可切换
     // - hide-安全 / hide-帮助：其余卡片仍隐藏，避免被控端被误改
     // 一次性密码与固定密码逻辑不受影响。
     if option_env!("RUSTDESK_LITE_INCOMING") == Some("1") {
@@ -305,8 +305,17 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
         }
         {
             let mut builtin = config::BUILTIN_SETTINGS.write().unwrap();
-            // 不再隐藏「网络」「服务器」设置 —— 让被控端也能切换服务器
+            // 隐藏「网络」设置整张卡片：现在自建服务器只有 rustdesk.ahwt.cc 一套，
+            // 没有可切换的余地，留在界面上只会让人误改（改错就连不上）。
+            // - hide-network-settings：设置页直接不再出现「网络」标签
+            //   （desktop_setting_page.dart 的 DesktopSettingPage.tabKeys 会跳过它）
+            // - 下面三个是 _NetworkState.network() 里的兜底判断，即使从别处进入也渲染空
+            // 注意：前提是默认服务器已由上面固定为 rustdesk.ahwt.cc，否则隐藏后无法再改。
             for k in [
+                keys::OPTION_HIDE_NETWORK_SETTINGS,
+                keys::OPTION_HIDE_SERVER_SETTINGS,
+                keys::OPTION_HIDE_PROXY_SETTINGS,
+                keys::OPTION_HIDE_WEBSOCKET_SETTINGS,
                 keys::OPTION_HIDE_SECURITY_SETTINGS,
                 keys::OPTION_HIDE_HELP_CARDS,
             ] {
