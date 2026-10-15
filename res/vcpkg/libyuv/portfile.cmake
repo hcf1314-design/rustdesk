@@ -2,8 +2,9 @@ vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
 vcpkg_from_git(
     OUT_SOURCE_PATH SOURCE_PATH
-    URL https://chromium.googlesource.com/libyuv/libyuv
-    REF 0faf8dd0e004520a61a603a4d2996d5ecc80dc3f
+    # 镜像仓库：chromium.googlesource.com 对 GitHub Actions 间歇 503，改用 GitHub 快照镜像
+    URL https://github.com/hcf1314-design/libyuv-mirror.git
+    REF 248b4c5bbcbc3b371a3ad562b56678a1fef84a91 # snapshot of 0faf8dd0e004520a61a603a4d2996d5ecc80dc3f
     # Check https://chromium.googlesource.com/libyuv/libyuv/+/refs/heads/main/include/libyuv/version.h for a version!
     PATCHES
         fix-cmakelists.patch

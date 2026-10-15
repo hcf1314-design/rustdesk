@@ -12,8 +12,9 @@ if(DEFINED ENV{USE_AOM_391})
     set(AOM_CONFIG_PATH "lib/cmake/aom")
     vcpkg_from_git(
         OUT_SOURCE_PATH SOURCE_PATH
-        URL "https://aomedia.googlesource.com/aom"
-        REF 8ad484f8a18ed1853c094e7d3a4e023b2a92df28 # 3.9.1
+        # 镜像仓库：aomedia.googlesource.com 对 GitHub Actions 间歇 503，改用 GitHub 快照镜像
+        URL "https://github.com/hcf1314-design/aom-mirror.git"
+        REF e05708cc0460d11a59310876bca62762c025ccde # 3.9.1 snapshot of 8ad484f8a18ed1853c094e7d3a4e023b2a92df28
         PATCHES
             aom-uninitialized-pointer-3.9.1.diff
             aom-avx2.diff
@@ -23,8 +24,9 @@ else()
     set(AOM_CONFIG_PATH "lib/cmake/AOM")
     vcpkg_from_git(
         OUT_SOURCE_PATH SOURCE_PATH
-        URL "https://aomedia.googlesource.com/aom"
-        REF 03087864cf4bea6abb0d28f95cf7843511413d8f # 3.14.1
+        # 镜像仓库：aomedia.googlesource.com 对 GitHub Actions 间歇 503，改用 GitHub 快照镜像
+        URL "https://github.com/hcf1314-design/aom-mirror.git"
+        REF d9ca3edf71889921bf679b53dc923a5089c71d14 # 3.14.1 snapshot of 03087864cf4bea6abb0d28f95cf7843511413d8f
         PATCHES
             aom-uninitialized-pointer.diff
     )
