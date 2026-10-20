@@ -183,50 +183,43 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 log::info!("custom client: preset permanent password applied");
             }
         }
-        // 迁移：早期构建把默认服务器写成 bbs.ahwt.cc，且没有 api-server，
-        // 于是切换器显示"自定义"、地址簿也不会自动上线。装上新版后在这里改回
-        // rustdesk.ahwt.cc（阿里云 + 后台）。key 两台服务器共用，不用动。
-        if config::Config::get_option("custom-rendezvous-server") == "bbs.ahwt.cc" {
-            config::Config::set_option(
-                "custom-rendezvous-server".to_owned(),
-                "rustdesk.ahwt.cc".to_owned(),
-            );
-            config::Config::set_option("relay-server".to_owned(), "rustdesk.ahwt.cc".to_owned());
-            config::Config::set_option(
-                "api-server".to_owned(),
-                "https://rustdesk.ahwt.cc".to_owned(),
-            );
-            config::Config::set_option(
-                "key".to_owned(),
-                "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=".to_owned(),
-            );
-            log::info!("custom client: migrated default server bbs -> rustdesk.ahwt.cc");
-        }
-        // 默认服务器：仅首次运行写入一次（用标记位防止覆盖用户之后的选择）
-        if config::Config::get_option("custom-client-server-inited").is_empty() {
-            config::Config::set_option(
-                "custom-client-server-inited".to_owned(),
-                "1".to_owned(),
-            );
-            if config::Config::get_option("custom-rendezvous-server").is_empty() {
-                // 编译期选择默认服务器（仅决定地址；key 全网统一）：
-                // RUSTDESK_PRESET_SERVER=ak → ak.ahwt.xyz（PVE 上的 RustDesk 服务）
-                // RUSTDESK_PRESET_SERVER=cc → rustdesk.ahwt.cc（阿里云 + rustdesk-api 后台）
-                // 留空 → 同 cc：rustdesk.ahwt.cc（现在只保留阿里云一套，别再落到 bbs 上，
-                // bbs 没有 api-server，切换器会显示"自定义"且地址簿不自动上线）
-                //
-                // 注意：ak.ahwt.xyz 与 rustdesk.ahwt.cc 两台服务器的 hbbs 共用同一对密钥
-                // （均为 5Skq…），所以客户端在设置里切换服务器时只需改地址，key 不用动。
-                let (id_server, relay_server, api_server) =
-                    match option_env!("RUSTDESK_PRESET_SERVER") {
-                        Some("ak") => ("ak.ahwt.xyz", "ak.ahwt.xyz", "http://ak.ahwt.xyz:21114"),
-                        _ => (
-                            "rustdesk.ahwt.cc",
-                            "rustdesk.ahwt.cc",
-                            "https://rustdesk.ahwt.cc",
-                        ),
-                    };
-                let hbbs_key = "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=";
+        // 默认服务器自愈（每次启动都校验，不再只在首次运行写一次）
+        //
+        // 设置页左上那行"当前使用 xxx"、以及客户端实际连哪台 hbbs，全都只看
+        // custom-rendezvous-server 这一个配置项：
+        //   - 空值   → 上游一律当作「官方公共服务器」，设置页直接显示“官方公共服务器”，
+        //              而且内核会真的去连 rs-ny.rustdesk.com；
+        //   - 旧地址 → bbs.ahwt.cc（早期构建，无 api-server）/ ak.ahwt.xyz（ak 版）。
+        // 早期版本用 custom-client-server-inited 标记位保证"只写一次"，一旦该标记在
+        // 地址为空时被置位（或用户后来把地址清掉），之后就再也不会回填 —— 于是出现
+        // "只配了一台自建服务器，却显示官方公共服务器"的现象。这里改成每次启动自愈：
+        // 地址为空 / 是旧地址 / 附属项缺失，都拉回编译期指定的那一台。
+        {
+            // 编译期选择默认服务器（仅决定地址；key 全网统一）：
+            // RUSTDESK_PRESET_SERVER=ak → ak.ahwt.xyz（PVE 上的 RustDesk 服务）
+            // RUSTDESK_PRESET_SERVER=cc 或留空 → rustdesk.ahwt.cc（阿里云 + rustdesk-api 后台）
+            //
+            // 注意：ak.ahwt.xyz 与 rustdesk.ahwt.cc 两台服务器的 hbbs 共用同一对密钥
+            // （均为 5Skq…），所以切换服务器时只需改地址，key 不用动。
+            let (id_server, relay_server, api_server) = match option_env!("RUSTDESK_PRESET_SERVER") {
+                Some("ak") => ("ak.ahwt.xyz", "ak.ahwt.xyz", "http://ak.ahwt.xyz:21114"),
+                _ => (
+                    "rustdesk.ahwt.cc",
+                    "rustdesk.ahwt.cc",
+                    "https://rustdesk.ahwt.cc",
+                ),
+            };
+            let hbbs_key = "5Skq3vFTle7uabw3sbQA09Pc7YCi2kfNNf5emPi0jJY=";
+            let cur = config::Config::get_option("custom-rendezvous-server");
+            // 空 = 官方公共服务器（必须纠正）；bbs / 另一个 ak 域名 = 早期构建写的旧地址
+            let stale = cur.is_empty()
+                || cur == "bbs.ahwt.cc"
+                || (cur == "ak.ahwt.xyz" && id_server != "ak.ahwt.xyz");
+            // 地址对、但 relay / api 还缺（早期版本只写过 ID 服务器）：一并补齐
+            let incomplete = cur == id_server
+                && (config::Config::get_option("relay-server").is_empty()
+                    || config::Config::get_option("api-server").is_empty());
+            if stale || incomplete {
                 config::Config::set_option(
                     "custom-rendezvous-server".to_owned(),
                     id_server.to_owned(),
@@ -236,6 +229,18 @@ fn initialize(app_dir: &str, custom_client_config: &str) {
                 if !api_server.is_empty() {
                     config::Config::set_option("api-server".to_owned(), api_server.to_owned());
                 }
+                log::info!(
+                    "custom client: server preset self-healed ({:?}) -> {}",
+                    cur,
+                    id_server
+                );
+            }
+            // 旧标记位保留（只为不清掉已有状态），逻辑上不再依赖它
+            if config::Config::get_option("custom-client-server-inited").is_empty() {
+                config::Config::set_option(
+                    "custom-client-server-inited".to_owned(),
+                    "1".to_owned(),
+                );
             }
         }
     }

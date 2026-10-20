@@ -1769,7 +1769,10 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
     for (final e in _presetServers.entries) {
       if (e.value[0] == cur) return e.key;
     }
-    return cur.isEmpty ? '官方公共服务器' : '自定义';
+    // 空值上游会显示“官方公共服务器”，但本客户端只有一台自建服务器（Rust 侧每次启动
+    // 都会自愈回填），所以界面上不再出现“官方公共服务器 / 自定义”这类会误导的文案。
+    if (cur.isEmpty) return _presetServers.keys.first;
+    return '自定义';
   }
 
   void _showServerSwitchDialog() {
@@ -1946,12 +1949,21 @@ class _NetworkState extends State<_Network> with AutomaticKeepAliveClientMixin {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              listTile(
-                icon: Icons.swap_horizontal_circle_outlined,
-                title: '切换自建服务器',
-                trailing: Text(_currentPresetName()),
-                onTap: _showServerSwitchDialog,
-              ),
+              // 只有一台自建服务器时，"切换"本身没有意义（下拉里还会带出官方公共服务器
+              // 这一项，容易让人以为连到公网去了），所以直接显示固定服务器名，不给弹窗。
+              if (_presetServers.length > 1)
+                listTile(
+                  icon: Icons.swap_horizontal_circle_outlined,
+                  title: '切换自建服务器',
+                  trailing: Text(_currentPresetName()),
+                  onTap: _showServerSwitchDialog,
+                )
+              else
+                listTile(
+                  icon: Icons.dns_outlined,
+                  title: '自建服务器',
+                  trailing: Text(_currentPresetName()),
+                ),
               divider,
               if (!hideServer)
                 listTile(

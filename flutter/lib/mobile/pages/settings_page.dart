@@ -58,7 +58,10 @@ String _currentPresetServerName() {
   for (final e in _kPresetServers.entries) {
     if (e.value[0] == cur) return e.key;
   }
-  return cur.isEmpty ? '官方公共服务器' : '自定义';
+  // 空值上游会显示“官方公共服务器”，但本客户端只有一台自建服务器（Rust 侧每次启动
+  // 都会自愈回填），不再显示会误导的文案。
+  if (cur.isEmpty) return _kPresetServers.keys.first;
+  return '自定义';
 }
 
 Future<void> showPresetServerSwitcher(BuildContext context) async {
