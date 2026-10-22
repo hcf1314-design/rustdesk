@@ -18,6 +18,10 @@ on:
         description: "首启默认服务器：留空=bbs(阿里云)，ak=NAS(ak.ahwt.xyz)，cc=阿里云(rustdesk.ahwt.cc)"
         type: string
         default: ""
+      auto_login:
+        description: "预置账号自动登录：true=自用版(开机自动登录 zte)，false=客户版(不登录，终端互不看见)"
+        type: boolean
+        default: true
 
 jobs:
   run-flutter-nightly-build:
@@ -29,3 +33,4 @@ jobs:
       lite: ${{ inputs.lite == true }}
       selfsign: ${{ inputs.selfsign != false }}
       preset_server: ${{ inputs.preset_server || '' }}
+      auto_login: ${{ inputs.auto_login != false }}

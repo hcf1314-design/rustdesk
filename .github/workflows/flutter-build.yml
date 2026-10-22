@@ -21,6 +21,10 @@ on:
         description: "首启默认服务器：留空=bbs，ak=ak 默认版（配好 api-server，配合预置 token）"
         type: string
         default: ""
+      auto_login:
+        description: "预置账号自动登录：true=自用版(注入账号/token，开机自动登录)，false=客户版(不注入，终端互不看见)"
+        type: boolean
+        default: true
 
 # NOTE: F-Droid builder script 'flutter/build_fdroid.sh' reads environment
 # variables from this workflow!
@@ -157,10 +161,11 @@ jobs:
       SELFSIGN_ENABLED: "${{ inputs.selfsign != false && secrets.SELFSIGN_PFX_BASE64 != null && '1' || '' }}"
       # 预置设备账号登录态（编译期经 option_env! 注入 src/flutter_ffi.rs）：
       # 需要 ak.ahwt.xyz 这类后台的设备，开机即处于登录态；secret 未配置时为空串，代码里判空跳过
-      RUSTDESK_PRESET_TOKEN: "${{ secrets.RUSTDESK_PRESET_TOKEN }}"
-      RUSTDESK_PRESET_USERINFO: "${{ secrets.RUSTDESK_PRESET_USERINFO }}"
-      RUSTDESK_PRESET_USERNAME: "${{ secrets.RUSTDESK_PRESET_USERNAME }}"
-      RUSTDESK_PRESET_PASSWORD: "${{ secrets.RUSTDESK_PRESET_PASSWORD }}"
+      # inputs.auto_login=false 时四项全为空串 -> src/flutter_ffi.rs 里 option_env! 判空跳过，不做任何登录
+      RUSTDESK_PRESET_TOKEN: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_TOKEN || '' }}"
+      RUSTDESK_PRESET_USERINFO: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_USERINFO || '' }}"
+      RUSTDESK_PRESET_USERNAME: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_USERNAME || '' }}"
+      RUSTDESK_PRESET_PASSWORD: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_PASSWORD || '' }}"
       # 首启默认服务器族：留空=bbs（免登录），"ak"=ak 默认版（配好 api-server，配合预置 token 使用）
       RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server || '' }}"
     steps:
@@ -1115,10 +1120,11 @@ jobs:
     runs-on: ${{ matrix.job.os }}
     env:
       # 预置设备账号（编译期注入 src/flutter_ffi.rs）：首启自动登录自建后台
-      RUSTDESK_PRESET_USERNAME: "${{ secrets.RUSTDESK_PRESET_USERNAME }}"
-      RUSTDESK_PRESET_PASSWORD: "${{ secrets.RUSTDESK_PRESET_PASSWORD }}"
-      RUSTDESK_PRESET_TOKEN: "${{ secrets.RUSTDESK_PRESET_TOKEN }}"
-      RUSTDESK_PRESET_USERINFO: "${{ secrets.RUSTDESK_PRESET_USERINFO }}"
+      # inputs.auto_login=false 时不注入 -> 客户版终端不登录，后台地址簿为空，彼此看不见
+      RUSTDESK_PRESET_USERNAME: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_USERNAME || '' }}"
+      RUSTDESK_PRESET_PASSWORD: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_PASSWORD || '' }}"
+      RUSTDESK_PRESET_TOKEN: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_TOKEN || '' }}"
+      RUSTDESK_PRESET_USERINFO: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_USERINFO || '' }}"
       RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server || '' }}"
     strategy:
       fail-fast: false
