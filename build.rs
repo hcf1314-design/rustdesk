@@ -102,4 +102,6 @@ fn main() {
         build_android_ifaddrs();
     }
     println!("cargo:rerun-if-changed=build.rs");
+    // [CUSTOM] 更新端点由编译期环境变量注入，env 变化时必须重新编译，否则增量缓存会保留旧端点
+    println!("cargo:rerun-if-env-changed=RUSTDESK_UPDATE_URL");
 }
