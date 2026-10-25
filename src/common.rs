@@ -1017,10 +1017,19 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
     }
 }
 
-pub fn check_software_update() {
-    if is_custom_client() {
-        return;
+// [CUSTOM] 自建更新端点：GET 该地址，返回 {"url": "<host>/releases/tag/<version>"}
+// 可用编译期环境变量 RUSTDESK_UPDATE_URL 覆盖，便于自建分发。
+pub const DEFAULT_SOFTWARE_UPDATE_URL: &str = "https://rustdesk.ahwt.cc/rustdesk/version";
+
+pub fn software_update_url() -> String {
+    match option_env!("RUSTDESK_UPDATE_URL") {
+        Some(u) if !u.is_empty() => u.to_string(),
+        _ => DEFAULT_SOFTWARE_UPDATE_URL.to_string(),
     }
+}
+
+pub fn check_software_update() {
+    // [CUSTOM] 定制版同样启用自更新（官方默认对定制版直接 return）
     let opt = LocalConfig::get_option(keys::OPTION_ENABLE_CHECK_UPDATE);
     if config::option2bool(keys::OPTION_ENABLE_CHECK_UPDATE, &opt) {
         std::thread::spawn(move || allow_err!(do_check_software_update()));
@@ -1031,15 +1040,15 @@ pub fn check_software_update() {
 // Because the url is always `https://api.rustdesk.com/version/latest`.
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    let (request, url) =
-        hbb_common::version_check_request(hbb_common::VER_TYPE_RUSTDESK_CLIENT.to_string());
+    // [CUSTOM] 改为请求自建端点（GET，静态站点友好），不再 POST 到 api.rustdesk.com
+    let url = software_update_url();
     let proxy_conf = Config::get_socks();
     let tls_url = get_url_for_tls(&url, &proxy_conf);
     let tls_type = get_cached_tls_type(tls_url);
     let is_tls_not_cached = tls_type.is_none();
     let tls_type = tls_type.unwrap_or(TlsType::Rustls);
     let client = create_http_client_async(tls_type, false);
-    let latest_release_response = match client.post(&url).json(&request).send().await {
+    let latest_release_response = match client.get(&url).send().await {
         Ok(resp) => {
             upsert_tls_cache(tls_url, tls_type, false);
             resp
@@ -1048,7 +1057,7 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
             if is_tls_not_cached && err.is_request() {
                 let tls_type = TlsType::NativeTls;
                 let client = create_http_client_async(tls_type, false);
-                let resp = client.post(&url).json(&request).send().await?;
+                let resp = client.get(&url).send().await?;
                 upsert_tls_cache(tls_url, tls_type, false);
                 resp
             } else {
