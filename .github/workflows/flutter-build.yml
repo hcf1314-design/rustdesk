@@ -168,6 +168,10 @@ jobs:
       RUSTDESK_PRESET_PASSWORD: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_PASSWORD || '' }}"
       # 首启默认服务器族：留空=bbs（免登录），"ak"=ak 默认版（配好 api-server，配合预置 token 使用）
       RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server || '' }}"
+      # 自更新端点（编译期 option_env! 注入 src/common.rs）：
+      # 更新文件名恒为 rustdesk-<ver>-x86_64.exe（不区分标准/精简），故精简版走独立端点，
+      # 否则精简版客户端点更新后会被换成标准版。留空则用代码内默认端点。
+      RUSTDESK_UPDATE_URL: "${{ inputs.lite && 'https://rustdesk.ahwt.cc/rustdesk/lite/version' || '' }}"
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -1126,6 +1130,8 @@ jobs:
       RUSTDESK_PRESET_TOKEN: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_TOKEN || '' }}"
       RUSTDESK_PRESET_USERINFO: "${{ inputs.auto_login && secrets.RUSTDESK_PRESET_USERINFO || '' }}"
       RUSTDESK_PRESET_SERVER: "${{ inputs.preset_server || '' }}"
+      # 精简版走独立更新端点（同上，Android 本身不支持自更新，仅保持构建参数一致）
+      RUSTDESK_UPDATE_URL: "${{ inputs.lite && 'https://rustdesk.ahwt.cc/rustdesk/lite/version' || '' }}"
     strategy:
       fail-fast: false
       matrix:
