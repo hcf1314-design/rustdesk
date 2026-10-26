@@ -174,7 +174,7 @@ jobs:
       # 端点矩阵（精简/自用 各自独立，避免自更新后被换成别的版本）：
       #   lite+self -> /rustdesk/lite-self/version | std+self -> /rustdesk/self/version
       #   lite+cust -> /rustdesk/lite/version      | std+cust -> 代码内默认 /rustdesk/version
-      RUSTDESK_UPDATE_URL: "${{ inputs.auto_login && (inputs.lite && 'https://rustdesk.ahwt.cc/rustdesk/lite-self/version' || 'https://rustdesk.ahwt.cc/rustdesk/self/version') || (inputs.lite && 'https://rustdesk.ahwt.cc/rustdesk/lite/version' || '') }}"
+      RUSTDESK_UPDATE_URL: "${{ inputs.auto_login && (inputs.lite && 'https://ak.ahwt.xyz:21120/rustdesk/lite-self/version' || 'https://ak.ahwt.xyz:21120/rustdesk/self/version') || (inputs.lite && 'https://ak.ahwt.xyz:21120/rustdesk/lite/version' || '') }}"
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -1137,7 +1137,7 @@ jobs:
       # 端点矩阵（精简/自用 各自独立，避免自更新后被换成别的版本）：
       #   lite+self -> /rustdesk/lite-self/version | std+self -> /rustdesk/self/version
       #   lite+cust -> /rustdesk/lite/version      | std+cust -> 代码内默认 /rustdesk/version
-      RUSTDESK_UPDATE_URL: "${{ inputs.auto_login && (inputs.lite && 'https://rustdesk.ahwt.cc/rustdesk/lite-self/version' || 'https://rustdesk.ahwt.cc/rustdesk/self/version') || (inputs.lite && 'https://rustdesk.ahwt.cc/rustdesk/lite/version' || '') }}"
+      RUSTDESK_UPDATE_URL: "${{ inputs.auto_login && (inputs.lite && 'https://ak.ahwt.xyz:21120/rustdesk/lite-self/version' || 'https://ak.ahwt.xyz:21120/rustdesk/self/version') || (inputs.lite && 'https://ak.ahwt.xyz:21120/rustdesk/lite/version' || '') }}"
     strategy:
       fail-fast: false
       matrix:

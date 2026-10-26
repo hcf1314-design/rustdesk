@@ -433,7 +433,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
       final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
       String btnText = isToUpdate ? 'Update' : 'Download';
       GestureTapCallback onPressed = () async {
-        final Uri url = Uri.parse('https://rustdesk.ahwt.cc/rustdesk/download');
+        final Uri url = Uri.parse('https://ak.ahwt.xyz:21120/rustdesk/download');
         await launchUrl(url);
       };
       if (isToUpdate) {
@@ -449,7 +449,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           closeButton: true,
           help: isToUpdate ? 'Changelog' : null,
           link: isToUpdate
-              ? 'https://rustdesk.ahwt.cc/rustdesk/changelog'
+              ? 'https://ak.ahwt.xyz:21120/rustdesk/changelog'
               : null);
     }
     if (systemError.isNotEmpty) {

@@ -1019,7 +1019,7 @@ pub fn is_modifier(evt: &KeyEvent) -> bool {
 
 // [CUSTOM] 自建更新端点：GET 该地址，返回 {"url": "<host>/releases/tag/<version>"}
 // 可用编译期环境变量 RUSTDESK_UPDATE_URL 覆盖，便于自建分发。
-pub const DEFAULT_SOFTWARE_UPDATE_URL: &str = "https://rustdesk.ahwt.cc/rustdesk/version";
+pub const DEFAULT_SOFTWARE_UPDATE_URL: &str = "https://ak.ahwt.xyz:21120/rustdesk/version";
 
 pub fn software_update_url() -> String {
     match option_env!("RUSTDESK_UPDATE_URL") {
