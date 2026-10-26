@@ -353,38 +353,46 @@ fn update_new_version(update_msi: bool, version: &str, file_path: &PathBuf) {
     }
 }
 
+/// [CUSTOM] 自建更新站点的 HTTPS 主机与端口（与 common.rs 的 DEFAULT_SOFTWARE_UPDATE_URL 保持一致）
+const CUSTOM_UPDATE_HOST: &str = "ak.ahwt.xyz";
+const CUSTOM_UPDATE_PORT: u16 = 21120;
+
 pub fn get_update_download_file_from_url(url: &str) -> Option<PathBuf> {
     let parsed = url::Url::parse(url).ok()?;
-    // Check the raw prefix before Url normalizes default ports.
-    if !url.starts_with("https://github.com/")
-        || parsed.scheme() != "https"
-        || parsed.host_str() != Some("github.com")
+    if parsed.scheme() != "https"
         || !parsed.username().is_empty()
         || parsed.password().is_some()
-        || parsed.port().is_some()
         || parsed.query().is_some()
         || parsed.fragment().is_some()
     {
         return None;
     }
 
-    let mut segments = parsed.path_segments()?;
-    let owner = segments.next()?;
-    let repo = segments.next()?;
-    let releases = segments.next()?;
-    let download = segments.next()?;
-    let tag = segments.next()?;
-    let filename = segments.next()?;
-
-    if owner != "rustdesk"
-        || repo != "rustdesk"
-        || releases != "releases"
-        || download != "download"
-        || tag.is_empty()
-        || segments.next().is_some()
-        || !is_plain_update_filename(filename)
-    {
+    let host = parsed.host_str()?;
+    // 只放行官方 github 与自建更新站点；自建站点必须带固定端口
+    let is_github =
+        host == "github.com" && parsed.port().is_none() && url.starts_with("https://github.com/");
+    let is_custom = host == CUSTOM_UPDATE_HOST && parsed.port() == Some(CUSTOM_UPDATE_PORT);
+    if !is_github && !is_custom {
         return None;
+    }
+
+    let segments: Vec<&str> = parsed.path_segments()?.collect();
+    let n = segments.len();
+    // 两种形态统一为 .../releases/download/<tag>/<filename>
+    if n < 4 || segments[n - 4] != "releases" || segments[n - 3] != "download" {
+        return None;
+    }
+    let tag = segments[n - 2];
+    let filename = segments[n - 1];
+    if tag.is_empty() || !is_plain_update_filename(filename) {
+        return None;
+    }
+    if is_github {
+        // 官方仓库保持严格校验：rustdesk/rustdesk/releases/download/<tag>/<filename>
+        if n != 6 || segments[0] != "rustdesk" || segments[1] != "rustdesk" {
+            return None;
+        }
     }
 
     Some(std::env::temp_dir().join(filename))
@@ -670,6 +678,34 @@ mod tests {
             file.file_name().and_then(|name| name.to_str()),
             Some("rustdesk-1.4.0-x86_64.dmg")
         );
+    }
+
+    #[test]
+    fn update_download_file_accepts_custom_update_host() {
+        // [CUSTOM] 自建更新站点的四路端点都应被接受
+        for url in [
+            "https://ak.ahwt.xyz:21120/rustdesk/releases/download/1.5.2/rustdesk-1.5.2-x86_64.exe",
+            "https://ak.ahwt.xyz:21120/rustdesk/self/releases/download/1.5.2/rustdesk-1.5.2-x86_64.exe",
+            "https://ak.ahwt.xyz:21120/rustdesk/lite/releases/download/1.5.2/rustdesk-1.5.2-aarch64.exe",
+            "https://ak.ahwt.xyz:21120/rustdesk/lite-self/releases/download/1.5.2/rustdesk-1.5.2-aarch64.exe",
+        ] {
+            assert!(
+                get_download_file_from_url(url).is_some(),
+                "custom update url should be accepted: {url}"
+            );
+        }
+        // 端口不对、或用 http 时必须拒绝
+        for url in [
+            "https://ak.ahwt.xyz/releases/download/1.5.2/rustdesk-1.5.2-x86_64.exe",
+            "https://ak.ahwt.xyz:21121/rustdesk/releases/download/1.5.2/rustdesk-1.5.2-x86_64.exe",
+            "http://ak.ahwt.xyz:21120/rustdesk/releases/download/1.5.2/rustdesk-1.5.2-x86_64.exe",
+            "https://ak.ahwt.xyz:21120/rustdesk/releases/download/1.5.2/nested/rustdesk.exe",
+        ] {
+            assert!(
+                get_download_file_from_url(url).is_none(),
+                "custom update url should be rejected: {url}"
+            );
+        }
     }
 
     #[test]
