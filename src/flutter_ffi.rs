@@ -108,7 +108,7 @@ fn spawn_preset_account_login_thread(wait_clear_seconds: usize) {
             if LocalConfig::get_option("access_token").is_empty() {
                 break;
             }
-            std::thread::sleep(Duration::from_secs(1));
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
         for attempt in 1..=3 {
             let token = LocalConfig::get_option("access_token");
@@ -123,7 +123,7 @@ fn spawn_preset_account_login_thread(wait_clear_seconds: usize) {
                 ),
             }
             if attempt < 3 {
-                std::thread::sleep(Duration::from_secs(15));
+                std::thread::sleep(std::time::Duration::from_secs(15));
             }
         }
     });
