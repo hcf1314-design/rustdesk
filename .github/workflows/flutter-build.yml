@@ -1268,8 +1268,9 @@ jobs:
       group: signed-update-${{ inputs.upload-tag }}
       cancel-in-progress: false
     permissions:
-      # Required to inspect and publish signed release assets for the target tag.
-      contents: write
+      # [CUSTOM] fork 的 GITHUB_TOKEN 为只读，且发布类步骤已全部禁用；
+      # 若在此申请 contents: write，调用方会因“请求的权限超出允许范围”直接 startup_failure。
+      contents: read
     steps:
       - name: Refuse to replace published update metadata
         shell: bash
